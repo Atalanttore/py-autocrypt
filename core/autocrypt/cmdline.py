@@ -35,8 +35,6 @@ def autocrypt_main(context, basedir):
 
 
 @mycommand()
-@click.option("--replace", default=False, is_flag=True,
-              help="delete autocrypt account directory before attempting init")
 @click.option("--no-identity", default=False, is_flag=True,
               help="initializing without creating a default identity")
 @click.pass_context
@@ -49,15 +47,6 @@ def init(ctx, replace, no_identity):
     control (which gpg binary to use, which existing key to use, if to
     use an existing system key ring ...) specify "--no-identity".
     """
-    account = ctx.parent.account
-    if account.exists():
-        if not replace:
-            out_red("account exists at {} and --replace was not specified".format(
-                    account.dir))
-            ctx.exit(1)
-        else:
-            out_red("deleting account directory: {}".format(account.dir))
-            account.remove()
     if not os.path.exists(account.dir):
         os.mkdir(account.dir)
     account.init()
@@ -90,23 +79,16 @@ option_prefer_encrypt = click.option(
     "--prefer-encrypt", default=None, type=click.Choice(["nopreference", "mutual"]),
     help="modify prefer-encrypt setting, default is to not change it.")
 
-
 @mycommand("add-identity")
-@click.argument("identity_name", type=str, required=True)
 @option_use_key
 @option_use_system_keyring
 @option_gpgbin
 @option_email_regex
+@click.option("--replace", default=False, is_flag=True,
+              help="delete autocrypt account directory before attempting init")
 @click.pass_context
-def add_identity(ctx, identity_name, use_system_keyring,
-                 use_key, gpgbin, email_regex):
-    """add an identity to this account.
-
-    An identity requires an identity_name which is used to show, modify and delete it.
-
-    Of primary importance is the "email_regex" which you typically
-    set to a plain email address.   It is used when incoming or outgoing mails
-    need to be associated with this identity.
+def init(ctx, use_system_keyring, use_key, gpgbin, email_regex, replace):
+    """initialize Autocrypt account.
 
     Instead of generating a key (the default operation) you may specify an
     existing key with --use-key=keyhandle where keyhandle may be
@@ -114,10 +96,21 @@ def add_identity(ctx, identity_name, use_system_keyring,
     Typically you will then also specify --use-system-keyring to make use of
     your existing keys.  All incoming autocrypt keys will thus be stored in
     the system key ring instead of an own keyring.
+
+    You may specify an "email_regex" which is used as a safety check
+    when processing incoming and outgoing mail.
     """
-    account = get_account(ctx)
-    ident = account.add_identity(
-        identity_name, keyhandle=use_key, gpgbin=gpgbin,
+    account = ctx.parent.account
+    if account.exists():
+        if not replace:
+            out_red("account exists at {} and --replace was not specified".format(
+                    account.dir))
+            ctx.exit(1)
+        else:
+            out_red("deleting account directory: {}".format(account.dir))
+            account.remove()
+    account.init(
+        keyhandle=use_key, gpgbin=gpgbin,
         gpgmode="system" if use_system_keyring else "own", email_regex=email_regex
     )
     click.echo("identity added: '{}'".format(ident.config.name))
